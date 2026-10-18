@@ -1,6 +1,6 @@
 # 🌐 Tailscale Node Monitoring & Awtrix NG Integration (v2.10.3)
 
-Ein leichtgewichtiges, selbstgehostetes Monitoring-System für Tailscale-Netzwerke mit automatischer Verbindungsweg-Erkennung (Tailscale vs. Public IP), Telegram-Alarmierung, SQLite-Historie und Live-Statusanzeige auf einer **Awtrix NG (32x8 LED-Matrix)**.
+Ein leichtgewichtiges, selbst gehostetes Monitoring-System für Tailscale-Netzwerke mit automatischer Verbindungsweg-Erkennung (Tailscale-IP vs. öffentliche IP), Telegram-Alarmierung, SQLite-Historie und Awtrix-NG-LED-Matrix-Integration.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10+-brightgreen.svg)
@@ -11,12 +11,12 @@ Ein leichtgewichtiges, selbstgehostetes Monitoring-System für Tailscale-Netzwer
 
 ## ✨ Features
 
-- 📊 **Dynamic Master Dashboard:** FastAPI-basiertes Web-Dashboard mit Live-Metriken (CPU, RAM, Disk, Uptime) und Ping-Ergebnissen.
-- 🔀 **Smart Route Tracking:** Erkennt automatisch, ob ein Agent über die Tailscale-IP oder die öffentliche IP antwortet.
-- 📉 **Chart.js Historie:** Interaktive Verlaufsdiagramme für Systemauslastung und Latenzen.
-- ⌚ **Awtrix NG Integration:** Benutzerdefiniertes Berry-Skript für 32x8 LED-Matrizen (`4 OK` / `1 ERR`).
-- 🔔 **Telegram Alerts:** Benachrichtigungen bei Serverausfällen und Entwarnungen.
-- 🧹 **Automatischer DB Cleanup:** Löscht historische Daten nach 120 Tagen und führt zur Speicherplatzersparnis ein `VACUUM` auf der SQLite-DB aus.
+- 📊 Dynamic Master Dashboard: FastAPI-basiertes Web-Dashboard mit Live-Metriken (CPU, RAM, Disk, Uptime) und Ping-Ergebnissen.
+- 🔀 Smart Route Tracking: Erkennt automatisch, ob ein Agent über die Tailscale-IP oder die öffentliche IP antwortet.
+- 📉 Chart.js-Historie: Interaktive Verlaufsdiagramme für Systemauslastung und Latenzen.
+- ⌚ Awtrix NG Integration: Benutzerdefiniertes Berry-Skript für 32x8-LED-Matrizen (`4 OK` / `1 ERR`).
+- 🔔 Telegram Alerts: Benachrichtigungen bei Serverausfällen und Entwarnungen.
+- 🧹 Automatischer DB-Cleanup: Löscht historische Daten nach 120 Tagen und führt bei Bedarf ein `VACUUM` auf der SQLite-Datenbank aus.
 
 ---
 
@@ -25,37 +25,52 @@ Ein leichtgewichtiges, selbstgehostetes Monitoring-System für Tailscale-Netzwer
 ```text
 ┌──────────────────┐      Report (API)     ┌───────────────────────┐
 │ Server Agent     │ ────────────────────> │ Monitoring Master     │
-│ (Node 1..N)      │ Tailscale / Public IP │ (FastAPI + SQLite)    │
+│ (Node 1..N)      │ Tailscale / Public IP │ (FastAPI + SQLite)     │
 └──────────────────┘                       └───────────┬───────────┘
-                                                       │
-                                   ┌───────────────────┼───────────────────┐
-                                   │                   │                   │
-                                   ▼                   ▼                   ▼
-                            ┌──────────────┐   ┌──────────────┐   ┌─────────────────┐
-                            │ Web Dashboard│   │ Telegram Bot │   │ Awtrix NG Clock │
-                            │ (Chart.js)   │   │ Alerts       │   │ (Berry App)     │
-                            └──────────────┘   └──────────────┘   └─────────────────┘
-#🚀 Schnellstart
-1. Master Server aufsetzen (Docker Compose)
-Klonen Sie das Repository und starten Sie den Master-Server:
-git clone [https://github.com/philipplindner-media-network/tailscale-node-monitoring.git](https://github.com/philipplindner-media-network/tailscale-node-monitoring.git)
+                                                        │
+                                    ┌───────────────────┼───────────────────┐
+                                    │                   │                   │
+                                    ▼                   ▼                   ▼
+                             ┌──────────────┐   ┌──────────────┐   ┌─────────────────┐
+                             │ Web Dashboard│   │ Telegram Bot │   │ Awtrix NG Clock │
+                             │ (Chart.js)   │   │ Alerts       │   │ (Berry App)     │
+                             └──────────────┘   └──────────────┘   └─────────────────┘
+```
+
+---
+
+## 🚀 Schnellstart
+
+### 1. Master-Server aufsetzen (Docker Compose)
+
+Repository klonen und den Master-Server starten:
+
+```bash
+git clone https://github.com/philipplindner-media-network/tailscale-node-monitoring.git
 cd tailscale-node-monitoring
-
-# Docker Container starten
 docker compose up -d
-Das Dashboard ist anschließend unter http://<SERVER-IP>:8090 erreichbar.
+```
 
-2. Agent auf Ziel-Servern installieren
-Auf jedem zu überwachenden Server kann der Agent per Setup-Skript eingerichtet werden:
+Das Dashboard ist anschließend unter `http://<SERVER-IP>:8090` erreichbar.
+
+### 2. Agent auf Zielservern installieren
+
+Auf jedem zu überwachenden Server kann der Agent über das Setup-Skript eingerichtet werden:
+
+```bash
 curl -sSL http://<MASTER-IP>:8090/setup-agent.sh | bash
+```
 
-3. Awtrix NG App installieren (Berry Script)
-Öffne die Weboberfläche deiner Awtrix NG / Tasmota-Uhr.
+### 3. Awtrix NG App installieren (Berry Script)
 
-Navigiere zu Filesystem / Console und erstelle eine neue Berry-App serverMonitor.be.
+Öffne die Weboberfläche deiner Awtrix-NG-/Tasmota-Uhr.
 
-Füge folgenden Code ein und passe die Server-IP an:
-# @desc Zeigt den Status aller Monitoring Server an (32x8 Display)
+Navigiere zu `Filesystem / Console` und erstelle eine neue Berry-App namens `serverMonitor.be`.
+
+Füge den folgenden Code ein und passe die Server-IP an:
+
+```berry
+# @desc Zeigt den Status aller Monitoring-Server an (32x8 Display)
 
 class ServerMonitorApp
   var status_text
@@ -114,18 +129,34 @@ class ServerMonitorApp
 end
 
 return ServerMonitorApp()
+```
 
-#🔒 Konfiguration & Sicherheit
-Empfohlen wird, sensible Daten über eine .env-Datei oder Umgebungsvariablen einzubinden:
+---
+
+## 🔒 Konfiguration & Sicherheit
+
+Es wird empfohlen, sensible Daten über eine `.env`-Datei oder Umgebungsvariablen einzubinden:
+
+```env
 API_SECRET=DeinSicheresSecret
 TELEGRAM_BOT_TOKEN=DeinBotToken
 TELEGRAM_CHAT_ID=DeineChatID
+```
 
-#📄 Lizenz
-Dieses Projekt steht unter der MIT License.
-<Suggest>Soll ich dir ein Shell-Skript erstellen, das die Veröffentlichung auf GitHub automatisch per Befehl durchführt?</Suggest>
-<Suggest>Möchtest du eine `README.md`-Datei als Download oder direkt per Agent im Repository anlegen?</Suggest>
-</FollowUp>
+Wichtige Hinweise:
 
-<ElicitationsGroup>
-</ElicitationsGroup>
+- `API_SECRET` schützt die API-Endpunkte vor unbefugtem Zugriff.
+- Telegram-Token und Chat-ID sollten niemals direkt im Code hinterlegt werden.
+- Für produktive Umgebungen empfiehlt sich ein separates Netzwerk-Setup mit Tailscale und eingeschränkten Firewall-Regeln.
+
+---
+
+## 📄 Lizenz
+
+Dieses Projekt steht unter der MIT-Lizenz.
+
+---
+
+## 📌 Hinweis
+
+Dieses Repository ist für den Einsatz als selbst gehostetes Monitoring-Tool für Tailscale-Umgebungen gedacht. Die Einrichtung und Konfiguration kann je nach Infrastruktur und Netzwerk-Topologie variieren.
