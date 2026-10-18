@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import json
 import datetime
@@ -10,17 +11,46 @@ from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 import httpx
 
+# Optional .env support: try python-dotenv first, fall back to a simple loader
+def _load_dotenv_file(path: str = ".env"):
+    try:
+        with open(path, "r") as fh:
+            for raw in fh:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    # don't overwrite existing env vars
+                    os.environ.setdefault(key, val)
+    except FileNotFoundError:
+        return
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    _load_dotenv_file()
+
 app = FastAPI(title="Tailscale Dynamic Master Dashboard")
 templates = Jinja2Templates(directory="templates")
 
-DB_FILE = "/app/data/monitoring.db"
+DB_FILE = os.getenv("DB_FILE", "/app/data/monitoring.db")
 
-# --- DEINE KONFIGURATION ---
-API_SECRET = "xxxx"
-TELEGRAM_BOT_TOKEN = "DEIN_TELEGRAM"
-TELEGRAM_CHAT_ID = "DEIN_TELEGRAM"
-OFFLINE_THRESHOLD_MINUTES = 2
-RETENTION_DAYS = 120  # Löschedatum für alte Logs (120 Tage = ~4 Monate)
+# --- KONFIGURATION (aus Umgebungsvariablen / .env) ---
+API_SECRET = os.getenv("API_SECRET", "xxxx")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "DEIN_TELEGRAM")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "DEIN_TELEGRAM")
+try:
+    OFFLINE_THRESHOLD_MINUTES = int(os.getenv("OFFLINE_THRESHOLD_MINUTES", "2"))
+except ValueError:
+    OFFLINE_THRESHOLD_MINUTES = 2
+try:
+    RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "120"))
+except ValueError:
+    RETENTION_DAYS = 120  # Löschedatum für alte Logs (120 Tage = ~4 Monate)
 
 alerted_nodes = set()
 
