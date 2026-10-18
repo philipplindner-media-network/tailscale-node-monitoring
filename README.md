@@ -149,6 +149,41 @@ Wichtige Hinweise:
 - Telegram-Token und Chat-ID sollten niemals direkt im Code hinterlegt werden.
 - Für produktive Umgebungen empfiehlt sich ein separates Netzwerk-Setup mit Tailscale und eingeschränkten Firewall-Regeln.
 
+### Konfigurations-Punkte für server.py und setup-agent.sh
+
+Damit Server und Agent korrekt miteinander kommunizieren, müssen einige Umgebungsvariablen konsistent gesetzt werden.
+
+1) Variablen für `server.py` (Master)
+
+- `API_SECRET` — Das gemeinsame geheime Token, das der Master beim Verifizieren von Agent-Anfragen verwendet.
+- `TELEGRAM_BOT_TOKEN` — Token des Telegram-Bots, über den Alerts gesendet werden.
+- `TELEGRAM_CHAT_ID` — Ziel-Chat/Channel für Telegram-Alerts.
+
+Beispiel `.env` für den Master:
+
+```env
+API_SECRET=MeinSuperSecretToken
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+TELEGRAM_CHAT_ID=987654321
+```
+
+2) Variablen für `setup-agent.sh` / Agent (auf dem zu überwachenden Host)
+
+- `PRIMARY_SERVER_URL` — Die Tailscale-IP-Adresse des Master-Servers (z. B. `http://100.64.x.y:8090`).
+- `FALLBACK_SERVER_URL` — Die öffentliche IP/URL des Master-Servers (z. B. `http://203.0.113.5:8090`).
+- `API_SECRET` — Muss identisch mit `API_SECRET` aus `server.py` sein, sonst werden Agent-Reports verworfen.
+
+Beispiel-Aufruf (als Umgebungsvariablen vor dem Install-Skript):
+
+```bash
+export PRIMARY_SERVER_URL="http://100.64.0.12:8090"
+export FALLBACK_SERVER_URL="http://203.0.113.5:8090"
+export API_SECRET="MeinSuperSecretToken"
+curl -sSL http://<MASTER-IP>:8090/setup-agent.sh | bash
+```
+
+Hinweis: In der `setup-agent.sh` wird zuerst versucht, die Verbindung über `PRIMARY_SERVER_URL` (Tailscale) aufzubauen; falls das nicht funktioniert, wird `FALLBACK_SERVER_URL` (öffentliche IP) verwendet.
+
 ---
 
 ## 📄 Lizenz
