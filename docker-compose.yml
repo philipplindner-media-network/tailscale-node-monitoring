@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  monitoring-server:
+    build: .
+    container_name: tailscale-monitoring-server
+    restart: always
+    ports:
+      - "8090:8000"
+    volumes:
+      - ./data:/app/data
+      - ./setup-agent.sh:/app/setup-agent.sh:ro

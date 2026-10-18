@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="de" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tailscale Node Monitoring v2.10.3</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #0b0f19; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        .card { background-color: #161c2e; border: 1px solid #232d48; border-radius: 12px; transition: transform 0.2s, box-shadow 0.2s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+        .status-badge { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .bg-online { background-color: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
+        .bg-offline { background-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
+        .metric-box { background-color: #0f1423; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid #1e273e; }
+        .metric-val { font-size: 1.1rem; font-weight: 700; color: #f3f4f6; }
+        .metric-lbl { font-size: 0.75rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
+        .ping-badge { font-size: 0.8rem; font-weight: 600; padding: 4px 8px; border-radius: 6px; }
+        .conn-pill { font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; font-weight: 600; }
+        .version-badge { font-size: 0.7rem; background-color: #1e273e; color: #9ca3af; border: 1px solid #232d48; border-radius: 6px; padding: 2px 6px; }
+    </style>
+</head>
+<body class="text-light">
+
+<nav class="navbar navbar-expand-lg border-bottom border-dark py-3" style="background-color: #0f1423;">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand fw-bold d-flex align-items-center text-primary" href="#">
+            <i class="bi bi-globe2 me-2 fs-4"></i> Tailscale Node Monitoring
+            <span class="version-badge ms-2">v2.10.3</span>
+        </a>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm" id="btnOpenAddModal">
+                <i class="bi bi-plus-lg me-1"></i> Server hinzufügen
+            </button>
+            <button class="btn btn-primary btn-sm" id="btnRefresh">
+                <i class="bi bi-arrow-clockwise me-1"></i> Aktualisieren
+            </button>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid px-4 py-4">
+    <div class="row g-4" id="nodeContainer">
+        <div class="col-12 text-center text-muted py-5">Lade Server-Daten...</div>
+    </div>
+</div>
+
+<!-- Config Modal -->
+<div class="modal fade" id="configModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Server Konfiguration</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="configNodeName">
+                <div class="mb-3">
+                    <label class="form-label">Anzeigename</label>
+                    <input type="text" class="form-control bg-secondary text-light border-0" id="configDisplayName">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ping-Ziele (kommagetrennt)</label>
+                    <input type="text" class="form-control bg-secondary text-light border-0" id="configTargets" placeholder="100.x.x.x, 1.1.1.1">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="btnSaveConfig">Speichern</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Node Modal -->
+<div class="modal fade" id="addNodeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Neuen Server hinzufügen</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Node Name (Hostname)</label>
+                    <input type="text" class="form-control bg-secondary text-light border-0" id="addNodeName" placeholder="z. B. server-01">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Anzeigename</label>
+                    <input type="text" class="form-control bg-secondary text-light border-0" id="addDisplayName" placeholder="z. B. Webserver Mainz">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ping-Ziele (kommagetrennt)</label>
+                    <input type="text" class="form-control bg-secondary text-light border-0" id="addTargets" placeholder="1.1.1.1, 8.8.8.8">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="btnSubmitAddNode">Erstellen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- History / DB Modal -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="historyModalTitle">Datenbank-Historie</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6 class="text-primary mb-3"><i class="bi bi-cpu me-1"></i> System-Auslastung (Verlauf)</h6>
+                <div style="height: 220px;" class="mb-4">
+                    <canvas id="metricsChart"></canvas>
+                </div>
+                <h6 class="text-warning mb-3"><i class="bi bi-activity me-1"></i> Ping-Latenz (ms)</h6>
+                <div style="height: 180px;">
+                    <canvas id="pingsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const OFFLINE_THRESHOLD_MINUTES = 2;
+let allNodesData = {};
+let metricsChartInstance = null;
+let pingsChartInstance = null;
+
+let configModalInstance = null;
+let addNodeModalInstance = null;
+let historyModalInstance = null;
+
+function getModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    return bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('nodeContainer').addEventListener('click', (e) => {
+        const btnHistory = e.target.closest('.btn-history');
+        const btnConfig = e.target.closest('.btn-config');
+        const btnDelete = e.target.closest('.btn-delete');
+
+        if (btnHistory) openHistoryModal(btnHistory.dataset.node);
+        if (btnConfig) openConfigModal(btnConfig.dataset.node);
+        if (btnDelete) deleteNode(btnDelete.dataset.node);
+    });
+
+    document.getElementById('btnOpenAddModal').onclick = () => {
+        document.getElementById('addNodeName').value = '';
+        document.getElementById('addDisplayName').value = '';
+        document.getElementById('addTargets').value = '';
+        getModal('addNodeModal').show();
+    };
+
+    document.getElementById('btnSubmitAddNode').onclick = async () => {
+        const nodeName = document.getElementById('addNodeName').value.trim();
+        const displayName = document.getElementById('addDisplayName').value.trim();
+        const targetsStr = document.getElementById('addTargets').value;
+        const targets = targetsStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+        if (!nodeName) {
+            alert("Bitte einen Node-Namen eingeben!");
+            return;
+        }
+
+        await fetch('/api/nodes/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node_name: nodeName, display_name: displayName, targets_to_ping: targets })
+        });
+
+        getModal('addNodeModal').hide();
+        loadNodes();
+    };
+
+    document.getElementById('btnSaveConfig').onclick = async () => {
+        const nodeName = document.getElementById('configNodeName').value;
+        const displayName = document.getElementById('configDisplayName').value;
+        const targetsStr = document.getElementById('configTargets').value;
+        const targets = targetsStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+        await fetch('/api/config/set_targets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node_name: nodeName, display_name: displayName, targets_to_ping: targets })
+        });
+
+        getModal('configModal').hide();
+        loadNodes();
+    };
+
+    document.getElementById('btnRefresh').onclick = loadNodes;
+
+    loadNodes();
+    setInterval(loadNodes, 10000);
+});
+
+async function loadNodes() {
+    try {
+        const res = await fetch('/api/nodes');
+        const nodes = await res.json();
+        const container = document.getElementById('nodeContainer');
+        container.innerHTML = '';
+        allNodesData = {};
+
+        if (!nodes || nodes.length === 0) {
+            container.innerHTML = '<div class="col-12 text-center text-muted py-5">Keine Server registriert.</div>';
+            return;
+        }
+
+        nodes.forEach(node => {
+            allNodesData[node.node_name] = node;
+
+            const now = new Date();
+            let isOnline = false;
+            let lastSeenText = 'Nie';
+
+            if (node.last_seen && typeof node.last_seen === 'string') {
+                let dateStr = node.last_seen.trim().replace(' ', 'T');
+                if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+                    dateStr += 'Z';
+                }
+                const lastSeenDate = new Date(dateStr);
+                if (!isNaN(lastSeenDate.getTime())) {
+                    const diffMin = (now - lastSeenDate) / 1000 / 60;
+                    isOnline = diffMin <= OFFLINE_THRESHOLD_MINUTES;
+                    lastSeenText = lastSeenDate.toLocaleString();
+                } else {
+                    lastSeenText = node.last_seen;
+                }
+            }
+
+            const statusClass = isOnline ? 'bg-online' : 'bg-offline';
+            const statusLabel = isOnline ? 'Online' : 'Offline';
+
+            const connType = node.last_connection_type || 'Unbekannt';
+            const connBadgeStyle = connType === 'Tailscale' 
+                ? 'background-color: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6;' 
+                : 'background-color: #854d0e; color: #fef08a; border: 1px solid #eab308;';
+
+            const m = node.latest_metrics || {};
+            const cpu = (m.cpu_usage !== undefined && m.cpu_usage !== null) ? Number(m.cpu_usage).toFixed(1) : '0.0';
+            const ram = (m.ram_usage !== undefined && m.ram_usage !== null) ? Number(m.ram_usage).toFixed(1) : '0.0';
+            const disk = (m.disk_usage !== undefined && m.disk_usage !== null) ? Number(m.disk_usage).toFixed(1) : '0.0';
+            const uptimeSec = m.uptime_seconds || 0;
+            const uptimeDays = Math.floor(uptimeSec / 86400);
+            const uptimeHours = Math.floor((uptimeSec % 86400) / 3600);
+
+            let pingsHtml = '';
+            if (node.latest_pings && node.latest_pings.length > 0) {
+                pingsHtml = node.latest_pings.map(p => {
+                    const badgeClass = p.alive ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger text-light';
+                    const latText = (p.alive && p.latency_ms !== null) ? `${Number(p.latency_ms).toFixed(1)} ms` : 'DOWN';
+                    return `
+                        <div class="d-flex justify-content-between align-items-center mb-1 small">
+                            <span class="text-secondary font-monospace">${p.target}</span>
+                            <span class="ping-badge ${badgeClass}">${latText}</span>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                pingsHtml = '<div class="text-muted small">Keine Ping-Ziele konfiguriert</div>';
+            }
+
+            const card = `
+                <div class="col-md-6 col-lg-4">
+                    <div class="card p-3 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="card-title m-0 fw-bold text-truncate" style="max-width: 220px;">
+                                ${node.display_name || node.node_name}
+                            </h5>
+                            <span class="d-flex align-items-center small">
+                                <span class="status-badge ${statusClass}"></span>
+                                <span>${statusLabel}</span>
+                            </span>
+                        </div>
+                        <div class="text-muted small mb-3">Host: ${node.node_name}</div>
+
+                        <div class="mb-3">
+                            <div class="small mb-1"><i class="bi bi-shield-lock me-1 text-primary"></i> <b>Tailscale IP:</b> <span class="font-monospace">${node.tailscale_ip || 'N/A'}</span></div>
+                            <div class="small mb-1"><i class="bi bi-globe me-1 text-info"></i> <b>Public IP:</b> <span class="font-monospace">${node.public_ip || 'N/A'}</span></div>
+                            <div class="small mb-2"><i class="bi bi-clock-history me-1 text-secondary"></i> <b>Zuletzt gesehen:</b> ${lastSeenText}</div>
+                            
+                            <div class="d-flex align-items-center gap-2 mt-2">
+                                <span class="small text-muted">Route:</span>
+                                <span class="conn-pill" style="${connBadgeStyle}">
+                                    <i class="bi bi-arrow-right-short"></i> ${connType}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-4">
+                                <div class="metric-box">
+                                    <div class="metric-val">${cpu}%</div>
+                                    <div class="metric-lbl">CPU</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-box">
+                                    <div class="metric-val">${ram}%</div>
+                                    <div class="metric-lbl">RAM</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-box">
+                                    <div class="metric-val">${disk}%</div>
+                                    <div class="metric-lbl">Disk</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="small mb-3">
+                            <i class="bi bi-stopwatch me-1 text-warning"></i> <b>Uptime:</b> ${uptimeDays}d ${uptimeHours}h
+                        </div>
+
+                        <div class="border-top border-secondary pt-2 mb-3">
+                            <div class="small text-muted mb-2 fw-semibold">Ping-Ergebnisse:</div>
+                            ${pingsHtml}
+                        </div>
+
+                        <div class="d-flex gap-2 pt-2 border-top border-secondary">
+                            <button class="btn btn-outline-info btn-sm flex-fill btn-history" data-node="${node.node_name}">
+                                <i class="bi bi-graph-up"></i> Historie
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm btn-config" data-node="${node.node_name}">
+                                <i class="bi bi-gear"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm btn-delete" data-node="${node.node_name}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += card;
+        });
+    } catch (e) {
+        console.error("Fehler beim Laden der Nodes:", e);
+    }
+}
+
+async function openHistoryModal(nodeName) {
+    const node = allNodesData[nodeName];
+    const displayName = node ? (node.display_name || node.node_name) : nodeName;
+    document.getElementById('historyModalTitle').innerText = `Historie: ${displayName}`;
+
+    getModal('historyModal').show();
+
+    try {
+        const res = await fetch(`/api/history/${nodeName}?limit=30`);
+        const data = await res.json();
+
+        const metrics = data.metrics || [];
+        const labels = metrics.map(m => (m.timestamp ? (m.timestamp.split('T')[1] || m.timestamp).substring(0, 5) : ''));
+        const cpuData = metrics.map(m => m.cpu_usage || 0);
+        const ramData = metrics.map(m => m.ram_usage || 0);
+
+        if (metricsChartInstance) metricsChartInstance.destroy();
+        metricsChartInstance = new Chart(document.getElementById('metricsChart'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'CPU %', data: cpuData, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.3 },
+                    { label: 'RAM %', data: ramData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        const pings = data.pings || [];
+        const pingLabels = pings.map(p => (p.timestamp ? (p.timestamp.split('T')[1] || p.timestamp).substring(0, 5) : ''));
+        const pingLatencies = pings.map(p => p.latency_ms || 0);
+
+        if (pingsChartInstance) pingsChartInstance.destroy();
+        pingsChartInstance = new Chart(document.getElementById('pingsChart'), {
+            type: 'line',
+            data: {
+                labels: pingLabels,
+                datasets: [{ label: 'Latenz (ms)', data: pingLatencies, borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.1)', fill: true, tension: 0.3 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    } catch (err) {
+        console.error("Fehler beim Laden der Historie:", err);
+    }
+}
+
+function openConfigModal(nodeName) {
+    const node = allNodesData[nodeName];
+    if (!node) return;
+
+    document.getElementById('configNodeName').value = node.node_name;
+    document.getElementById('configDisplayName').value = node.display_name || '';
+    document.getElementById('configTargets').value = (node.targets_to_ping || []).join(', ');
+
+    getModal('configModal').show();
+}
+
+async function deleteNode(nodeName) {
+    if (confirm(`Server "${nodeName}" wirklich löschen?`)) {
+        await fetch(`/api/nodes/${nodeName}`, { method: 'DELETE' });
+        loadNodes();
+    }
+}
+</script>
+</body>
+</html>
